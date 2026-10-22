@@ -757,7 +757,7 @@ export const PaperFormModal: React.FC<PaperFormModalProps> = ({
             <div className="space-y-4 pt-2 border-t border-border">
               <h3 className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                 <Upload className="h-4 w-4 text-purple-500" />
-                2. Upload Scanned PDF Question Paper & Solution
+                2. Upload Scanned Document Question Paper & Solution
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -767,14 +767,14 @@ export const PaperFormModal: React.FC<PaperFormModalProps> = ({
                 >
                   <Upload className="h-8 w-8 text-purple-500" />
                   <div className="font-extrabold text-xs text-foreground">
-                    {selectedFileName ? selectedFileName : 'Click to select Question Paper PDF'}
+                    {selectedFileName ? selectedFileName : 'Click to select Question Paper (PDF, Word, or Image)'}
                   </div>
-                  <div className="text-[10px] text-muted-foreground">PDF Document up to 25MB</div>
+                  <div className="text-[10px] text-muted-foreground">PDF, Word (DOC/DOCX), PPT, or Image up to 25MB</div>
                   <input
                     type="file"
                     ref={pdfInputRef}
                     onChange={handlePdfFileSelect}
-                    accept=".pdf"
+                    accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.rtf,.jpg,.jpeg,.png,.webp"
                     className="hidden"
                   />
                 </div>
@@ -785,14 +785,14 @@ export const PaperFormModal: React.FC<PaperFormModalProps> = ({
                 >
                   <CheckCircle2 className="h-8 w-8 text-emerald-500" />
                   <div className="font-extrabold text-xs text-foreground">
-                    {solutionPdfUrl ? 'Solution PDF Attached' : 'Attach Solution PDF (Optional)'}
+                    {solutionPdfUrl ? 'Solution Attached' : 'Attach Solution Document (Optional)'}
                   </div>
-                  <div className="text-[10px] text-muted-foreground">Upload solution key file</div>
+                  <div className="text-[10px] text-muted-foreground">PDF, Word, or Document solution key</div>
                   <input
                     type="file"
                     ref={solutionPdfInputRef}
                     onChange={handleSolutionPdfSelect}
-                    accept=".pdf"
+                    accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.rtf,.jpg,.jpeg,.png,.webp"
                     className="hidden"
                   />
                 </div>

@@ -24,6 +24,7 @@ import {
   MOCK_CIRCULARS,
   MOCK_PAYMENTS,
 } from '../../../shared/constants/mockData';
+import { useUserAdminStore } from '../../../store/useUserAdminStore';
 
 export interface OperationalOverviewGridProps {
   loading?: boolean;
@@ -32,9 +33,17 @@ export interface OperationalOverviewGridProps {
 export const OperationalOverviewGrid: React.FC<OperationalOverviewGridProps> = ({
   loading = false,
 }) => {
-  // Calculated Telemetry
-  const totalStudents = 148250;
-  const activeStudents = 124800;
+  const { users, fetchUsers } = useUserAdminStore();
+
+  React.useEffect(() => {
+    if (users.length === 0) {
+      fetchUsers();
+    }
+  }, [users.length, fetchUsers]);
+
+  // Calculated Telemetry from actual database state
+  const totalStudents = users.length > 0 ? users.length : 1;
+  const activeStudents = users.filter((u) => u.status === 'VERIFIED' || u.status === 'ACTIVE').length || totalStudents;
   const notesCount = 1845;
   const pyqCount = 2190;
   const pendingApprovalsCount = MOCK_NOTES.filter((n) => n.status === 'PENDING').length + 14;

@@ -89,7 +89,7 @@ export const ReplacePaperFileModal: React.FC<ReplacePaperFileModalProps> = ({
           type="file"
           ref={fileInputRef}
           onChange={handleSystemFileChange}
-          accept=".pdf,.doc,.docx"
+          accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.rtf,.jpg,.jpeg,.png,.webp"
           className="hidden"
         />
 

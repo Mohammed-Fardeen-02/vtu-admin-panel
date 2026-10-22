@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { PassingPackage, PassingQuestion, PackageAuditLog } from '../shared/types/package.types';
+import { apiClient } from '../shared/api/apiClient';
 
 interface PackageStoreState {
   packages: PassingPackage[];
@@ -11,6 +12,7 @@ interface PackageStoreState {
   filterStatus: string;
   filterPremium: string;
 
+  fetchPackages: () => Promise<void>;
   setSearchQuery: (query: string) => void;
   setFilterBranch: (branch: string) => void;
   setFilterScheme: (scheme: string) => void;
@@ -18,12 +20,12 @@ interface PackageStoreState {
   setFilterStatus: (status: string) => void;
   setFilterPremium: (premium: string) => void;
 
-  createPackage: (data: Omit<PassingPackage, 'id' | 'createdAt' | 'updatedAt' | 'views' | 'downloads' | 'bookmarks'>) => void;
+  createPackage: (data: Omit<PassingPackage, 'id' | 'createdAt' | 'updatedAt' | 'views' | 'downloads' | 'bookmarks'>) => Promise<void>;
   updatePackage: (id: string, updates: Partial<PassingPackage>) => void;
   publishPackage: (id: string) => void;
   unpublishPackage: (id: string) => void;
   archivePackage: (id: string) => void;
-  deletePackage: (id: string) => void;
+  deletePackage: (id: string) => Promise<void>;
   reorderQuestions: (packageId: string, questions: PassingQuestion[]) => void;
 }
 
@@ -187,6 +189,18 @@ export const usePackageStore = create<PackageStoreState>((set, get) => ({
   filterStatus: 'ALL',
   filterPremium: 'ALL',
 
+  fetchPackages: async () => {
+    try {
+      const response: any = await apiClient.get('/passing-packages');
+      const items = response?.items || response?.data?.items || response?.data || response;
+      if (Array.isArray(items) && items.length > 0) {
+        set({ packages: items });
+      }
+    } catch {
+      // Retain initial packages
+    }
+  },
+
   setSearchQuery: (query) => set({ searchQuery: query }),
   setFilterBranch: (branch) => set({ filterBranch: branch }),
   setFilterScheme: (scheme) => set({ filterScheme: scheme }),
@@ -194,7 +208,7 @@ export const usePackageStore = create<PackageStoreState>((set, get) => ({
   setFilterStatus: (status) => set({ filterStatus: status }),
   setFilterPremium: (premium) => set({ filterPremium: premium }),
 
-  createPackage: (data) => {
+  createPackage: async (data) => {
     // Sanitize title and revision text against prohibited claims
     const cleanTitle = sanitizePackageText(data.title);
     const cleanSummary = sanitizePackageText(data.lastMinuteRevisionSummary);
@@ -215,6 +229,28 @@ export const usePackageStore = create<PackageStoreState>((set, get) => ({
       createdAt: now,
       updatedAt: now,
     };
+
+    try {
+      await apiClient.post('/passing-packages', {
+        title: cleanTitle,
+        subjectCode: data.subjectCode,
+        subjectName: data.subjectName,
+        branchCode: data.branchCode,
+        schemeYear: data.schemeYear,
+        semester: Number(data.semester),
+        unitsCount: data.unitsCount,
+        questionsCount: data.questionsCount,
+        lastMinuteRevisionSummary: cleanSummary,
+        oneNightBeforeNotes: cleanOneNight,
+        isPremium: Boolean(data.isPremium),
+        tier: data.tier,
+        priceINR: Number(data.priceINR || 0),
+        author: data.author,
+        questions: data.questions || [],
+      });
+    } catch (e) {
+      console.warn('[createPackage API sync warning]:', e);
+    }
 
     const newLog: PackageAuditLog = {
       id: `plog-${Date.now()}`,
@@ -325,9 +361,17 @@ export const usePackageStore = create<PackageStoreState>((set, get) => ({
     }));
   },
 
-  deletePackage: (id) => {
+  deletePackage: async (id) => {
     const target = get().packages.find((p) => p.id === id);
     if (!target) return;
+
+    try {
+      if (id.length > 20) {
+        await apiClient.delete(`/passing-packages/${id}`);
+      }
+    } catch (e) {
+      console.warn('[deletePackage API error]:', e);
+    }
 
     const newLog: PackageAuditLog = {
       id: `plog-${Date.now()}`,

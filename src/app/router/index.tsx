@@ -33,9 +33,11 @@ import { AcademicCalendarPage } from '../../modules/calendar/AcademicCalendarPag
 import { CircularsPage } from '../../modules/circulars/CircularsPage';
 import { RewardRulesPage } from '../../modules/rewards/RewardRulesPage';
 import { PassingPackagesPage } from '../../modules/packages/PassingPackagesPage';
+import { OrdersPage } from '../../modules/monetization/OrdersPage';
 
 // System
 import { SettingsPage } from '../../modules/settings/SettingsPage';
+import { AdminUsersPage } from '../../modules/system/AdminUsersPage';
 
 // Standardized Submodule Placeholder
 import { SubmodulePlaceholderPage } from '../../shared/components/pages/SubmodulePlaceholderPage';
@@ -221,14 +223,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'monetization/orders',
-        element: (
-          <SubmodulePlaceholderPage
-            moduleName="MONETIZATION"
-            submoduleName="Payments & Orders"
-            description="Razorpay & UPI payment logs, subscription invoices, and transaction refunds."
-            icon={DollarSign}
-          />
-        ),
+        element: <OrdersPage />,
       },
       {
         path: 'monetization/ads',
@@ -284,14 +279,7 @@ export const router = createBrowserRouter([
       // ----------------------------------------------------
       {
         path: 'system/admin-users',
-        element: (
-          <SubmodulePlaceholderPage
-            moduleName="SYSTEM"
-            submoduleName="Admin Users"
-            description="Admin console role assignments, faculty moderator accounts, and access logs."
-            icon={Shield}
-          />
-        ),
+        element: <AdminUsersPage />,
       },
       {
         path: 'system/audit-logs',

@@ -50,7 +50,12 @@ export const PassingPackagesPage: React.FC = () => {
     unpublishPackage,
     archivePackage,
     deletePackage,
+    fetchPackages,
   } = usePackageStore();
+
+  React.useEffect(() => {
+    fetchPackages();
+  }, [fetchPackages]);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingPackage, setEditingPackage] = useState<PassingPackage | null>(null);

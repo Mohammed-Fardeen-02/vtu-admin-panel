@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { InAppNotification, NotificationAuditLog, NotificationType, NotificationStatus, AudienceType } from '../shared/types/notification.types';
+import { apiClient } from '../shared/api/apiClient';
 
 interface NotificationStoreState {
   notifications: InAppNotification[];
@@ -8,6 +9,7 @@ interface NotificationStoreState {
   filterStatus: NotificationStatus | 'ALL';
   filterAudience: AudienceType | 'ALL';
   searchQuery: string;
+  isLoading: boolean;
 
   // Setters
   setFilterType: (type: NotificationType | 'ALL') => void;
@@ -16,131 +18,18 @@ interface NotificationStoreState {
   setSearchQuery: (query: string) => void;
 
   // Actions
+  fetchNotifications: () => Promise<void>;
   createNotification: (data: Omit<InAppNotification, 'id' | 'createdAt' | 'stats'>) => string;
   updateNotification: (id: string, updates: Partial<InAppNotification>) => void;
-  sendImmediately: (id: string) => void;
+  sendImmediately: (id: string) => Promise<void>;
   scheduleNotification: (id: string, scheduledFor: string) => void;
   cancelScheduledNotification: (id: string) => void;
-  deleteNotification: (id: string) => void;
+  deleteNotification: (id: string) => Promise<void>;
 }
 
-const INITIAL_NOTIFICATIONS: InAppNotification[] = [
-  {
-    id: 'notif-201',
-    title: 'VTU Odd Semester Revaluation Results Announced',
-    body: 'Revaluation results for 5th and 7th Semester B.E. examinations held in June/July 2026 are now available on the VTU Results Portal.',
-    type: 'RESULT',
-    audience: 'ALL_STUDENTS',
-    targetBranch: 'ALL',
-    targetSemester: 'ALL',
-    targetScheme: '2022',
-    targetCollege: 'ALL',
-    status: 'SENT',
-    sentAt: '2026-09-01 14:30',
-    createdBy: 'Registrar (Evaluation)',
-    createdAt: '2026-09-01 14:00',
-    actionUrl: 'https://results.vtu.ac.in',
-    stats: {
-      recipientsCount: 45200,
-      deliveredCount: 44100,
-      openedCount: 38950,
-    },
-  },
-  {
-    id: 'notif-202',
-    title: 'Revised Time Table for IA-1 Continuous Assessment',
-    body: 'Internal Assessment Test 1 timetable has been updated for Computer Science & Engineering department for 5th semester.',
-    type: 'EXAM',
-    audience: 'BRANCH_SPECIFIC',
-    targetBranch: 'CSE',
-    targetSemester: 5,
-    targetScheme: '2022',
-    targetCollege: 'ALL',
-    status: 'SCHEDULED',
-    scheduledFor: '2026-09-10 09:00',
-    createdBy: 'HOD CSE Dept',
-    createdAt: '2026-09-05 11:20',
-    stats: {
-      recipientsCount: 14200,
-      deliveredCount: 0,
-      openedCount: 0,
-    },
-  },
-  {
-    id: 'notif-203',
-    title: 'VTU Official Circular: Submission of Examination Application Forms',
-    body: 'All eligible regular and backlog students must complete exam form submission by September 25, 2026 without late fee.',
-    type: 'CIRCULAR',
-    audience: 'ALL_STUDENTS',
-    targetBranch: 'ALL',
-    targetSemester: 'ALL',
-    targetScheme: 'ALL',
-    targetCollege: 'ALL',
-    status: 'SENT',
-    sentAt: '2026-08-28 10:15',
-    createdBy: 'VTU Central Admin',
-    createdAt: '2026-08-28 09:30',
-    attachmentUrl: 'https://vtu.ac.in/pdf/circulars/exam_form_2026.pdf',
-    stats: {
-      recipientsCount: 125000,
-      deliveredCount: 121500,
-      openedCount: 98400,
-    },
-  },
-  {
-    id: 'notif-204',
-    title: 'Draft Announcement: VTU State Level Coding Competition 2026',
-    body: 'Join the annual inter-collegiate hackathon. Registration opens on September 15th with cash prizes up to INR 2,00,000.',
-    type: 'COMMUNITY',
-    audience: 'BRANCH_SPECIFIC',
-    targetBranch: 'CSE',
-    targetSemester: 'ALL',
-    targetScheme: 'ALL',
-    targetCollege: 'ALL',
-    status: 'DRAFT',
-    createdBy: 'Student Activity Coordinator',
-    createdAt: '2026-09-06 16:45',
-    stats: {
-      recipientsCount: 18500,
-      deliveredCount: 0,
-      openedCount: 0,
-    },
-  },
-  {
-    id: 'notif-205',
-    title: 'Scheduled System Maintenance Notification',
-    body: 'VTU Student Application and Notes Library services will undergo scheduled database maintenance on Sunday between 02:00 AM and 05:00 AM.',
-    type: 'SYSTEM',
-    audience: 'ALL_STUDENTS',
-    targetBranch: 'ALL',
-    targetSemester: 'ALL',
-    targetScheme: 'ALL',
-    targetCollege: 'ALL',
-    status: 'SCHEDULED',
-    scheduledFor: '2026-09-13 20:00',
-    createdBy: 'DevOps System Admin',
-    createdAt: '2026-09-06 18:00',
-    stats: {
-      recipientsCount: 150000,
-      deliveredCount: 0,
-      openedCount: 0,
-    },
-  },
-];
+const INITIAL_NOTIFICATIONS: InAppNotification[] = [];
 
-const INITIAL_LOGS: NotificationAuditLog[] = [
-  {
-    id: 'nlog-1',
-    notificationId: 'notif-201',
-    notificationTitle: 'VTU Odd Semester Revaluation Results Announced',
-    action: 'SENT',
-    triggeredBy: 'Registrar (Evaluation)',
-    role: 'EXAM_CONTROLLER',
-    timestamp: '2026-09-01 14:30',
-    recipients: 45200,
-    details: 'Broadcasted instant push notification to 45,200 eligible students.',
-  },
-];
+const INITIAL_LOGS: NotificationAuditLog[] = [];
 
 export const useNotificationStore = create<NotificationStoreState>((set, get) => ({
   notifications: INITIAL_NOTIFICATIONS,
@@ -149,43 +38,101 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
   filterStatus: 'ALL',
   filterAudience: 'ALL',
   searchQuery: '',
+  isLoading: false,
 
   setFilterType: (type) => set({ filterType: type }),
   setFilterStatus: (status) => set({ filterStatus: status }),
   setFilterAudience: (aud) => set({ filterAudience: aud }),
   setSearchQuery: (query) => set({ searchQuery: query }),
 
+  fetchNotifications: async () => {
+    set({ isLoading: true });
+    try {
+      const [resNotifs, resLogs]: any = await Promise.all([
+        apiClient.get('/notifications'),
+        apiClient.get('/notifications/audit-logs').catch(() => ({ data: [] })),
+      ]);
+
+      const body = resNotifs.data?.data || resNotifs.data || resNotifs;
+      const rawList = Array.isArray(body) ? body : body.items || body.data || [];
+
+      if (Array.isArray(rawList) && rawList.length > 0) {
+        const mappedNotifs: InAppNotification[] = rawList.map((n: any) => ({
+          id: n.id,
+          title: n.title,
+          body: n.body || n.fullMessage || '',
+          type: (n.type as NotificationType) || 'CIRCULAR',
+          audience: (n.audience as AudienceType) || 'ALL_STUDENTS',
+          targetBranch: n.targetBranch || 'ALL',
+          targetSemester: n.targetSemester === 'ALL' ? 'ALL' : Number(n.targetSemester) || 'ALL',
+          targetScheme: n.targetScheme || 'ALL',
+          targetCollege: n.targetCollege || 'ALL',
+          status: (n.status as NotificationStatus) || 'SENT',
+          scheduledFor: n.scheduledFor,
+          sentAt: n.sentAt || n.createdAt,
+          createdBy: n.createdBy || 'VTU Admin Panel',
+          createdAt: n.createdAt || new Date().toISOString(),
+          attachmentUrl: n.attachmentUrl,
+          actionUrl: n.actionUrl,
+          stats: {
+            recipientsCount: n.stats?.recipientsCount ?? n.recipientsCount ?? 1,
+            deliveredCount: n.stats?.deliveredCount ?? n.deliveredCount ?? 0,
+            openedCount: n.stats?.openedCount ?? n.openedCount ?? 0,
+          },
+        }));
+
+        set({ notifications: mappedNotifs });
+      }
+
+      const logBody = resLogs.data?.data || resLogs.data || resLogs;
+      const rawLogs = Array.isArray(logBody) ? logBody : logBody.items || [];
+      if (Array.isArray(rawLogs) && rawLogs.length > 0) {
+        const mappedLogs: NotificationAuditLog[] = rawLogs.map((l: any) => ({
+          id: l.id,
+          notificationId: l.notificationId,
+          notificationTitle: l.notificationTitle,
+          action: l.action,
+          triggeredBy: l.triggeredBy,
+          role: l.role,
+          timestamp: l.timestamp || l.createdAt,
+          recipients: l.recipients,
+          details: l.details || '',
+        }));
+        set({ auditLogs: mappedLogs });
+      }
+    } catch (err) {
+      console.warn('Could not fetch notifications from backend API, using cached state:', err);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
   createNotification: (data) => {
     const id = `notif-${Date.now()}`;
     const now = new Date().toLocaleString();
-    
-    // Estimate recipients based on audience
-    let estRecipients = 150000;
-    if (data.audience === 'BRANCH_SPECIFIC') estRecipients = 24000;
-    if (data.audience === 'SEMESTER_SPECIFIC') estRecipients = 18000;
-    if (data.audience === 'SCHEME_SPECIFIC') estRecipients = 45000;
+    const isSent = data.status === 'SENT';
 
     const newNotif: InAppNotification = {
       ...data,
       id,
       createdAt: now,
       stats: {
-        recipientsCount: estRecipients,
-        deliveredCount: data.status === 'SENT' ? Math.round(estRecipients * 0.96) : 0,
-        openedCount: data.status === 'SENT' ? Math.round(estRecipients * 0.72) : 0,
+        recipientsCount: 1,
+        deliveredCount: isSent ? 1 : 0,
+        openedCount: 0,
       },
-      sentAt: data.status === 'SENT' ? now : undefined,
+      sentAt: isSent ? now : undefined,
     };
 
     const newLog: NotificationAuditLog = {
       id: `nlog-${Date.now()}`,
       notificationId: id,
       notificationTitle: data.title,
-      action: data.status === 'SENT' ? 'SENT' : data.status === 'SCHEDULED' ? 'SCHEDULED' : 'CREATED',
+      action: isSent ? 'SENT' : data.status === 'SCHEDULED' ? 'SCHEDULED' : 'CREATED',
       triggeredBy: 'Super Admin',
       role: 'SUPER_ADMIN',
       timestamp: now,
-      recipients: estRecipients,
+      recipients: 1,
       details: `Created notification of type "${data.type}" with status "${data.status}". Target: Branch=${data.targetBranch}, Sem=${data.targetSemester}, Scheme=${data.targetScheme}.`,
     };
 
@@ -193,6 +140,50 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
       notifications: [newNotif, ...state.notifications],
       auditLogs: [newLog, ...state.auditLogs],
     }));
+
+    // Post to backend database & broadcast live
+    apiClient
+      .post('/notifications/broadcast', {
+        title: data.title,
+        body: data.body,
+        type: data.type,
+        category: data.type === 'EXAM' ? 'Exams' : data.type === 'RESULT' ? 'Results' : 'Academic',
+        priority: 'Normal',
+        audience: data.audience,
+        targetBranch: data.targetBranch,
+        targetSemester: String(data.targetSemester),
+        targetScheme: data.targetScheme,
+        targetCollege: data.targetCollege,
+        status: data.status,
+        scheduledFor: data.scheduledFor,
+        attachmentUrl: data.attachmentUrl,
+        actionUrl: data.actionUrl,
+        createdBy: data.createdBy || 'Super Admin',
+      })
+      .then((response: any) => {
+        const savedData = response.data?.data || response.data;
+        if (savedData?.id) {
+          set((state) => ({
+            notifications: state.notifications.map((n) =>
+              n.id === id
+                ? {
+                    ...n,
+                    id: savedData.id,
+                    stats: {
+                      recipientsCount: savedData.recipientsCount ?? n.stats.recipientsCount,
+                      deliveredCount: savedData.deliveredCount ?? n.stats.deliveredCount,
+                      openedCount: savedData.openedCount ?? n.stats.openedCount,
+                    },
+                  }
+                : n
+            ),
+          }));
+          get().fetchNotifications();
+        }
+      })
+      .catch((err) => {
+        console.error('Error posting notification to backend API:', err);
+      });
 
     return id;
   },
@@ -220,13 +211,13 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
     }));
   },
 
-  sendImmediately: (id) => {
+  sendImmediately: async (id) => {
     const now = new Date().toLocaleString();
     const target = get().notifications.find((n) => n.id === id);
     if (!target) return;
 
-    const delivered = Math.round(target.stats.recipientsCount * 0.96);
-    const opened = Math.round(target.stats.recipientsCount * 0.74);
+    const delivered = target.stats.recipientsCount;
+    const opened = target.stats.openedCount;
 
     const newLog: NotificationAuditLog = {
       id: `nlog-${Date.now()}`,
@@ -254,6 +245,27 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
       ),
       auditLogs: [newLog, ...state.auditLogs],
     }));
+
+    try {
+      await apiClient.post('/notifications/broadcast', {
+        title: target.title,
+        body: target.body,
+        type: target.type,
+        category: target.type === 'EXAM' ? 'Exams' : target.type === 'RESULT' ? 'Results' : 'Academic',
+        priority: 'Normal',
+        audience: target.audience,
+        targetBranch: target.targetBranch,
+        targetSemester: String(target.targetSemester),
+        targetScheme: target.targetScheme,
+        targetCollege: target.targetCollege,
+        status: 'SENT',
+        attachmentUrl: target.attachmentUrl,
+        actionUrl: target.actionUrl,
+        createdBy: target.createdBy,
+      });
+    } catch (err) {
+      console.warn('Failed to send immediate notification via API:', err);
+    }
   },
 
   scheduleNotification: (id, scheduledFor) => {
@@ -306,7 +318,7 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
     }));
   },
 
-  deleteNotification: (id) => {
+  deleteNotification: async (id) => {
     const target = get().notifications.find((n) => n.id === id);
     if (!target) return;
 
@@ -326,5 +338,11 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
       notifications: state.notifications.filter((n) => n.id !== id),
       auditLogs: [newLog, ...state.auditLogs],
     }));
+
+    try {
+      await apiClient.delete(`/notifications/${id}`);
+    } catch (err) {
+      console.warn('Failed to delete notification on backend:', err);
+    }
   },
 }));

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Bell,
   Plus,
@@ -43,12 +43,17 @@ export const CircularsPage: React.FC = () => {
     setFilterStatus,
     setFilterAudience,
     setSearchQuery,
+    fetchNotifications,
     createNotification,
     updateNotification,
     sendImmediately,
     cancelScheduledNotification,
     deleteNotification,
   } = useNotificationStore();
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
 
   const [activeTab, setActiveTab] = useState<'BROADCASTS' | 'CIRCULARS'>('BROADCASTS');
   const [circulars] = useState(MOCK_CIRCULARS);
@@ -329,22 +334,30 @@ export const CircularsPage: React.FC = () => {
                           <span className="text-muted-foreground font-bold">Target Reach:</span>
                           <span className="font-extrabold text-foreground">{notif.stats.recipientsCount.toLocaleString()}</span>
                         </div>
-                        {notif.status === 'SENT' && (
-                          <>
-                            <div className="flex items-center justify-between text-[11px]">
-                              <span className="text-muted-foreground font-bold">Delivered:</span>
-                              <span className="font-extrabold text-emerald-600 dark:text-emerald-400">
-                                {notif.stats.deliveredCount.toLocaleString()} (96%)
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between text-[11px]">
-                              <span className="text-muted-foreground font-bold">Opened / Read:</span>
-                              <span className="font-extrabold text-primary">
-                                {notif.stats.openedCount.toLocaleString()} (74%)
-                              </span>
-                            </div>
-                          </>
-                        )}
+                        {notif.status === 'SENT' && (() => {
+                          const deliveryPct = notif.stats.recipientsCount > 0 
+                            ? Math.min(100, Math.round((notif.stats.deliveredCount / notif.stats.recipientsCount) * 100)) 
+                            : 0;
+                          const readPct = notif.stats.deliveredCount > 0 
+                            ? Math.min(100, Math.round((notif.stats.openedCount / notif.stats.deliveredCount) * 100)) 
+                            : 0;
+                          return (
+                            <>
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="text-muted-foreground font-bold">Delivered:</span>
+                                <span className="font-extrabold text-emerald-600 dark:text-emerald-400">
+                                  {notif.stats.deliveredCount.toLocaleString()} ({deliveryPct}%)
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="text-muted-foreground font-bold">Opened / Read:</span>
+                                <span className="font-extrabold text-primary">
+                                  {notif.stats.openedCount.toLocaleString()} ({readPct}%)
+                                </span>
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
 
                       {/* Action buttons */}
@@ -468,7 +481,7 @@ export const CircularsPage: React.FC = () => {
                           attachmentUrl: 'https://vtu.ac.in/pdf/circular.pdf',
                           createdBy: 'VTU Admin',
                           createdAt: '',
-                          stats: { recipientsCount: 150000, deliveredCount: 0, openedCount: 0 },
+                          stats: { recipientsCount: 1, deliveredCount: 0, openedCount: 0 },
                         });
                         setIsFormOpen(true);
                       }}

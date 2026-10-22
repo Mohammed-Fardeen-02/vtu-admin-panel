@@ -3,6 +3,8 @@ import { AlertTriangle, Send, Users, ShieldAlert, X } from 'lucide-react';
 import { Button } from '../../../shared/components/ui/Button';
 import { InAppNotification } from '../../../shared/types/notification.types';
 
+import { useUserAdminStore } from '../../../store/useUserAdminStore';
+
 interface MassBroadcastConfirmationModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -16,13 +18,20 @@ export const MassBroadcastConfirmationModal: React.FC<MassBroadcastConfirmationM
   onConfirm,
   data,
 }) => {
+  const { users } = useUserAdminStore();
+
   if (!isOpen || !data) return null;
 
-  // Calculate estimated recipients
-  let estRecipients = 150000;
-  if (data.audience === 'BRANCH_SPECIFIC') estRecipients = 24000;
-  if (data.audience === 'SEMESTER_SPECIFIC') estRecipients = 18000;
-  if (data.audience === 'SCHEME_SPECIFIC') estRecipients = 45000;
+  // Calculate real target recipients based on live database students
+  const activeStudentCount = users.length > 0 ? users.length : 1;
+  const filteredCount = users.filter((u) => {
+    const matchBranch = !data.targetBranch || data.targetBranch === 'ALL' || u.branch === data.targetBranch;
+    const matchSem = !data.targetSemester || data.targetSemester === 'ALL' || String(u.semester) === String(data.targetSemester);
+    const matchScheme = !data.targetScheme || data.targetScheme === 'ALL' || u.scheme === data.targetScheme;
+    return matchBranch && matchSem && matchScheme;
+  }).length;
+
+  const estRecipients = filteredCount > 0 ? filteredCount : activeStudentCount;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { CalendarEvent, CalendarAuditLog, CalendarEventCategory, CalendarEventStatus } from '../shared/types/calendar.types';
+import { apiClient } from '../shared/api/apiClient';
 
 interface CalendarStoreState {
   events: CalendarEvent[];
@@ -10,8 +11,10 @@ interface CalendarStoreState {
   filterScheme: string;
   filterSemester: string;
   searchQuery: string;
+  isLoading: boolean;
   
   // Actions
+  fetchEvents: () => Promise<void>;
   setFilterCategory: (category: CalendarEventCategory | 'ALL') => void;
   setFilterStatus: (status: CalendarEventStatus | 'ALL') => void;
   setFilterBranch: (branch: string) => void;
@@ -19,13 +22,13 @@ interface CalendarStoreState {
   setFilterSemester: (sem: string) => void;
   setSearchQuery: (query: string) => void;
 
-  addEvent: (event: Omit<CalendarEvent, 'id' | 'createdAt' | 'updatedAt' | 'isMobileSynced'>) => void;
-  updateEvent: (id: string, updates: Partial<CalendarEvent>) => void;
-  publishEvent: (id: string) => void;
-  archiveEvent: (id: string) => void;
-  deleteEvent: (id: string) => void;
-  publishAllDrafts: () => void;
-  syncMobileApp: () => void;
+  addEvent: (event: Omit<CalendarEvent, 'id' | 'createdAt' | 'updatedAt' | 'isMobileSynced'>) => Promise<void>;
+  updateEvent: (id: string, updates: Partial<CalendarEvent>) => Promise<void>;
+  publishEvent: (id: string) => Promise<void>;
+  archiveEvent: (id: string) => Promise<void>;
+  deleteEvent: (id: string) => Promise<void>;
+  publishAllDrafts: () => Promise<void>;
+  syncMobileApp: () => Promise<void>;
 }
 
 const INITIAL_EVENTS: CalendarEvent[] = [
@@ -181,6 +184,39 @@ export const useCalendarStore = create<CalendarStoreState>((set, get) => ({
   filterScheme: 'ALL',
   filterSemester: 'ALL',
   searchQuery: '',
+  isLoading: false,
+
+  fetchEvents: async () => {
+    set({ isLoading: true });
+    try {
+      const response: any = await apiClient.get('/academic/events');
+      const body = response.data?.data || response.data || response;
+      const rawEvents = Array.isArray(body) ? body : body.items || body.data || [];
+      if (Array.isArray(rawEvents) && rawEvents.length > 0) {
+        const mapped: CalendarEvent[] = rawEvents.map((e: any) => ({
+          id: e.id,
+          title: e.title,
+          description: e.description || '',
+          category: e.category,
+          startDate: e.startDate,
+          endDate: e.endDate || e.startDate,
+          branchId: e.branchId || 'ALL',
+          schemeId: e.schemeId || 'ALL',
+          semester: e.semester === 'ALL' ? 'ALL' : Number(e.semester) || 'ALL',
+          status: e.status || 'PUBLISHED',
+          createdBy: e.createdBy || 'VTU Academic Panel',
+          createdAt: e.createdAt ? e.createdAt.split('T')[0] : '2026-09-01',
+          updatedAt: e.updatedAt ? e.updatedAt.split('T')[0] : '2026-09-01',
+          isMobileSynced: Boolean(e.isMobileSynced ?? true),
+        }));
+        set({ events: mapped });
+      }
+    } catch (err: any) {
+      console.warn('[useCalendarStore] Failed to fetch events from backend:', err?.message || err);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
 
   setFilterCategory: (category) => set({ filterCategory: category }),
   setFilterStatus: (status) => set({ filterStatus: status }),
@@ -189,50 +225,52 @@ export const useCalendarStore = create<CalendarStoreState>((set, get) => ({
   setFilterSemester: (sem) => set({ filterSemester: sem }),
   setSearchQuery: (query) => set({ searchQuery: query }),
 
-  addEvent: (data) => {
-    const newId = `evt-${Date.now()}`;
+  addEvent: async (data) => {
     const now = new Date().toISOString().split('T')[0];
-    const newEvent: CalendarEvent = {
-      ...data,
-      id: newId,
-      createdAt: now,
-      updatedAt: now,
-      isMobileSynced: data.status === 'PUBLISHED',
-    };
-
-    const newLog: CalendarAuditLog = {
-      id: `log-${Date.now()}`,
-      eventId: newId,
-      eventTitle: data.title,
-      action: 'CREATED',
-      changedBy: 'Super Admin',
-      role: 'SUPER_ADMIN',
-      timestamp: new Date().toLocaleString(),
-      details: `Created calendar event category "${data.category}" with status "${data.status}".`,
-    };
-
-    set((state) => ({
-      events: [newEvent, ...state.events],
-      auditLogs: [newLog, ...state.auditLogs],
-    }));
+    try {
+      const res: any = await apiClient.post('/academic/events', {
+        title: data.title,
+        description: data.description,
+        category: data.category,
+        startDate: data.startDate,
+        endDate: data.endDate,
+        branchId: data.branchId,
+        schemeId: data.schemeId,
+        semester: String(data.semester),
+        status: data.status,
+        createdBy: data.createdBy,
+        isImportant: true,
+      });
+      const created = res.data?.data || res.data || res;
+      const newEvent: CalendarEvent = {
+        ...data,
+        id: created.id || `evt-${Date.now()}`,
+        createdAt: now,
+        updatedAt: now,
+        isMobileSynced: data.status === 'PUBLISHED',
+      };
+      set((state) => ({ events: [newEvent, ...state.events] }));
+      get().fetchEvents();
+    } catch {
+      const newId = `evt-${Date.now()}`;
+      const newEvent: CalendarEvent = {
+        ...data,
+        id: newId,
+        createdAt: now,
+        updatedAt: now,
+        isMobileSynced: data.status === 'PUBLISHED',
+      };
+      set((state) => ({ events: [newEvent, ...state.events] }));
+    }
   },
 
-  updateEvent: (id, updates) => {
+  updateEvent: async (id, updates) => {
     const now = new Date().toISOString().split('T')[0];
-    const targetEvent = get().events.find((e) => e.id === id);
-    if (!targetEvent) return;
-
-    const newLog: CalendarAuditLog = {
-      id: `log-${Date.now()}`,
-      eventId: id,
-      eventTitle: updates.title || targetEvent.title,
-      action: 'UPDATED',
-      changedBy: 'Super Admin',
-      role: 'SUPER_ADMIN',
-      timestamp: new Date().toLocaleString(),
-      details: `Updated event details. Updated fields: ${Object.keys(updates).join(', ')}`,
-    };
-
+    try {
+      await apiClient.patch(`/academic/events/${id}`, updates);
+    } catch {
+      // Ignore fallback
+    }
     set((state) => ({
       events: state.events.map((evt) =>
         evt.id === id
@@ -244,121 +282,67 @@ export const useCalendarStore = create<CalendarStoreState>((set, get) => ({
             }
           : evt
       ),
-      auditLogs: [newLog, ...state.auditLogs],
     }));
   },
 
-  publishEvent: (id) => {
-    const targetEvent = get().events.find((e) => e.id === id);
-    if (!targetEvent) return;
-
-    const newLog: CalendarAuditLog = {
-      id: `log-${Date.now()}`,
-      eventId: id,
-      eventTitle: targetEvent.title,
-      action: 'PUBLISHED',
-      changedBy: 'Super Admin',
-      role: 'SUPER_ADMIN',
-      timestamp: new Date().toLocaleString(),
-      details: `Published calendar event to mobile application.`,
-    };
-
+  publishEvent: async (id) => {
+    try {
+      await apiClient.patch(`/academic/events/${id}`, { status: 'PUBLISHED', isMobileSynced: true });
+    } catch {
+      // Ignore fallback
+    }
     set((state) => ({
       events: state.events.map((evt) =>
         evt.id === id
           ? { ...evt, status: 'PUBLISHED', isMobileSynced: true, updatedAt: new Date().toISOString().split('T')[0] }
           : evt
       ),
-      auditLogs: [newLog, ...state.auditLogs],
     }));
   },
 
-  archiveEvent: (id) => {
-    const targetEvent = get().events.find((e) => e.id === id);
-    if (!targetEvent) return;
-
-    const newLog: CalendarAuditLog = {
-      id: `log-${Date.now()}`,
-      eventId: id,
-      eventTitle: targetEvent.title,
-      action: 'ARCHIVED',
-      changedBy: 'Super Admin',
-      role: 'SUPER_ADMIN',
-      timestamp: new Date().toLocaleString(),
-      details: `Archived calendar event.`,
-    };
-
+  archiveEvent: async (id) => {
+    try {
+      await apiClient.patch(`/academic/events/${id}`, { status: 'ARCHIVED' });
+    } catch {
+      // Ignore fallback
+    }
     set((state) => ({
       events: state.events.map((evt) =>
         evt.id === id ? { ...evt, status: 'ARCHIVED', updatedAt: new Date().toISOString().split('T')[0] } : evt
       ),
-      auditLogs: [newLog, ...state.auditLogs],
     }));
   },
 
-  deleteEvent: (id) => {
-    const targetEvent = get().events.find((e) => e.id === id);
-    if (!targetEvent) return;
-
-    const newLog: CalendarAuditLog = {
-      id: `log-${Date.now()}`,
-      eventId: id,
-      eventTitle: targetEvent.title,
-      action: 'DELETED',
-      changedBy: 'Super Admin',
-      role: 'SUPER_ADMIN',
-      timestamp: new Date().toLocaleString(),
-      details: `Deleted calendar event.`,
-    };
-
+  deleteEvent: async (id) => {
+    try {
+      await apiClient.delete(`/academic/events/${id}`);
+    } catch {
+      // Ignore fallback
+    }
     set((state) => ({
       events: state.events.filter((evt) => evt.id !== id),
-      auditLogs: [newLog, ...state.auditLogs],
     }));
   },
 
-  publishAllDrafts: () => {
-    const draftCount = get().events.filter((e) => e.status === 'DRAFT').length;
-    if (draftCount === 0) return;
-
-    const newLog: CalendarAuditLog = {
-      id: `log-${Date.now()}`,
-      eventId: 'BULK',
-      eventTitle: `Bulk Published ${draftCount} Draft Events`,
-      action: 'PUBLISHED',
-      changedBy: 'Super Admin',
-      role: 'SUPER_ADMIN',
-      timestamp: new Date().toLocaleString(),
-      details: `Bulk published ${draftCount} draft calendar events to mobile feed.`,
-    };
-
+  publishAllDrafts: async () => {
+    const drafts = get().events.filter((e) => e.status === 'DRAFT');
+    for (const d of drafts) {
+      try {
+        await apiClient.patch(`/academic/events/${d.id}`, { status: 'PUBLISHED', isMobileSynced: true });
+      } catch {
+        // Continue
+      }
+    }
     set((state) => ({
       events: state.events.map((evt) =>
         evt.status === 'DRAFT'
           ? { ...evt, status: 'PUBLISHED', isMobileSynced: true, updatedAt: new Date().toISOString().split('T')[0] }
           : evt
       ),
-      auditLogs: [newLog, ...state.auditLogs],
     }));
   },
 
-  syncMobileApp: () => {
-    const newLog: CalendarAuditLog = {
-      id: `log-${Date.now()}`,
-      eventId: 'SYSTEM',
-      eventTitle: 'Mobile App Sync Handshake',
-      action: 'MOBILE_SYNC',
-      changedBy: 'System AutoSync',
-      role: 'SYSTEM',
-      timestamp: new Date().toLocaleString(),
-      details: `Synced active calendar schedule with mobile app remote endpoint.`,
-    };
-
-    set((state) => ({
-      events: state.events.map((evt) =>
-        evt.status === 'PUBLISHED' ? { ...evt, isMobileSynced: true } : evt
-      ),
-      auditLogs: [newLog, ...state.auditLogs],
-    }));
+  syncMobileApp: async () => {
+    await get().fetchEvents();
   },
 }));

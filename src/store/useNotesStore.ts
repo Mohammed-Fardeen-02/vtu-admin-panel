@@ -105,6 +105,7 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
         validation: DEFAULT_VALIDATION,
         reportsCount: 0,
         downloads: item.downloads || 0,
+        purchasesCount: item.purchasesCount || item._count?.orders || 0,
         bookmarksCount: item.bookmarks || 0,
         viewsCount: item.views || 0,
         averageRating: 5.0,

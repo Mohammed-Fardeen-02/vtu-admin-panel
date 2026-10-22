@@ -27,6 +27,7 @@ import {
   AlertTriangle,
   History,
   UserCheck,
+  CreditCard,
 } from 'lucide-react';
 import { Card, CardContent } from '../../shared/components/ui/Card';
 import { Button } from '../../shared/components/ui/Button';
@@ -176,6 +177,18 @@ export const NotesModerationPage: React.FC = () => {
     () => notes.filter((n) => n.status === 'PUBLISHED').length,
     [notes]
   );
+  const totalPurchases = useMemo(
+    () => notes.reduce((acc, n) => acc + (n.purchasesCount || 0), 0),
+    [notes]
+  );
+  const totalDownloads = useMemo(
+    () => notes.reduce((acc, n) => acc + (n.downloads || 0), 0),
+    [notes]
+  );
+  const paidNotesCount = useMemo(
+    () => notes.filter((n) => n.isPaid).length,
+    [notes]
+  );
 
   const handleOpenReviewModal = (n: AdminNote) => {
     setReviewNote(n);
@@ -233,6 +246,45 @@ export const NotesModerationPage: React.FC = () => {
         >
           Add Official Notes
         </Button>
+      </div>
+
+      {/* Dynamic Telemetry KPI Stats Bar */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="p-4 rounded-2xl border border-border bg-card shadow-xs space-y-1">
+          <span className="text-[11px] font-bold text-muted-foreground uppercase flex items-center gap-1.5">
+            <BookOpen className="h-3.5 w-3.5 text-primary" /> Total Library Notes
+          </span>
+          <p className="text-2xl font-black text-foreground">{notes.length}</p>
+          <span className="text-[10px] text-muted-foreground">{publishedCount} active & published</span>
+        </div>
+
+        <div className="p-4 rounded-2xl border border-border bg-card shadow-xs space-y-1">
+          <span className="text-[11px] font-bold text-muted-foreground uppercase flex items-center gap-1.5">
+            <CreditCard className="h-3.5 w-3.5 text-emerald-500" /> Student Unlocks (Sales)
+          </span>
+          <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+            {totalPurchases.toLocaleString()}
+          </p>
+          <span className="text-[10px] text-emerald-600/80">Across {paidNotesCount} paid notes</span>
+        </div>
+
+        <div className="p-4 rounded-2xl border border-border bg-card shadow-xs space-y-1">
+          <span className="text-[11px] font-bold text-muted-foreground uppercase flex items-center gap-1.5">
+            <Download className="h-3.5 w-3.5 text-blue-500" /> Total Downloads
+          </span>
+          <p className="text-2xl font-black text-blue-600 dark:text-blue-400">
+            {totalDownloads.toLocaleString()}
+          </p>
+          <span className="text-[10px] text-muted-foreground">Mobile offline downloads</span>
+        </div>
+
+        <div className="p-4 rounded-2xl border border-border bg-card shadow-xs space-y-1">
+          <span className="text-[11px] font-bold text-muted-foreground uppercase flex items-center gap-1.5">
+            <RefreshCcw className="h-3.5 w-3.5 text-amber-500" /> Pending Review
+          </span>
+          <p className="text-2xl font-black text-amber-600 dark:text-amber-400">{pendingReviewCount}</p>
+          <span className="text-[10px] text-amber-600/80">Submissions awaiting moderation</span>
+        </div>
       </div>
 
       {/* Tabs Bar */}
@@ -364,6 +416,7 @@ export const NotesModerationPage: React.FC = () => {
                 <TableHead>Note Details</TableHead>
                 <TableHead>Academic Path</TableHead>
                 <TableHead>Author & Specs</TableHead>
+                <TableHead className="text-center">Purchases & Downloads</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </tr>
@@ -405,6 +458,19 @@ export const NotesModerationPage: React.FC = () => {
                   <TableCell className="text-xs font-semibold text-muted-foreground">
                     <div className="text-foreground font-bold">{note.authorName}</div>
                     <div className="text-[11px] text-primary font-bold">{note.fileSize} ({note.pageCount} Pgs)</div>
+                  </TableCell>
+
+                  <TableCell className="text-xs text-center">
+                    <div className="flex flex-col items-center gap-1">
+                      <span className="inline-flex items-center gap-1 font-bold text-emerald-600 dark:text-emerald-400 text-xs">
+                        <CreditCard className="h-3.5 w-3.5" />
+                        {note.purchasesCount || 0} {note.purchasesCount === 1 ? 'sale' : 'sales'}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
+                        <Download className="h-3 w-3 text-blue-500" />
+                        {note.downloads || 0} dl
+                      </span>
+                    </div>
                   </TableCell>
 
                   <TableCell>

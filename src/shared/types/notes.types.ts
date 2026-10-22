@@ -83,6 +83,7 @@ export interface AdminNote {
   reportsCount: number;
   reportReasons?: string[];
   downloads: number;
+  purchasesCount?: number;
   bookmarksCount: number;
   viewsCount: number;
   averageRating: number;
